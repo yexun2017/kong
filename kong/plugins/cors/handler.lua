@@ -1,7 +1,7 @@
 local BasePlugin = require "kong.plugins.base_plugin"
 local responses  = require "kong.tools.responses"
 
-
+local url             = require "socket.url"
 local req_get_method  = ngx.req.get_method
 local re_find         = ngx.re.find
 local concat          = table.concat
@@ -50,8 +50,11 @@ local function configure_origin(ngx, conf)
 
   local req_origin = ngx.var.http_origin
   if req_origin then
+
+    local parsed_req_origin = url.parse(req_origin).host or req_origin
+
     for _, domain in ipairs(conf.origins) do
-      local from, _, err = re_find(req_origin, domain, "jo")
+      local from, _, err = re_find(parsed_req_origin, "^"..(url.parse(domain).host or domain).."$", "jo")
       if err then
         ngx.log(ngx.ERR, "[cors] could not search for domain: ", err)
       end
