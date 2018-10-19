@@ -16,6 +16,9 @@ CorsHandler.PRIORITY = 2000
 CorsHandler.VERSION = "0.1.0"
 
 
+local parsed_domains = { }
+
+
 local function configure_origin(ngx, conf)
   local n_origins = conf.origins ~= nil and #conf.origins or 0
 
@@ -54,7 +57,14 @@ local function configure_origin(ngx, conf)
     local parsed_req_origin = url.parse(req_origin).host or req_origin
 
     for _, domain in ipairs(conf.origins) do
-      local from, _, err = re_find(parsed_req_origin, "^"..(url.parse(domain).host or domain).."$", "jo")
+
+      local parsed_domain = parsed_domains[domain]
+      if not parsed_domain then
+        parsed_domain = url.parse(domain).host or domain
+        parsed_domains[domain] = parsed_domain
+      end
+
+      local from, _, err = re_find(parsed_req_origin, "^"..parsed_domain.."$", "jo")
       if err then
         ngx.log(ngx.ERR, "[cors] could not search for domain: ", err)
       end
