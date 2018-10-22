@@ -4,6 +4,8 @@ local utils = require "kong.tools.utils"
 local Entity = require "kong.db.schema.entity"
 local DAO = require "kong.db.dao"
 local MetaSchema = require "kong.db.schema.metaschema"
+local meta = require "kong.meta"
+local db = require "kong.db"
 
 
 local Plugins = {}
@@ -310,6 +312,13 @@ end
 
 
 function Plugins:select_by_cache_key(key)
+  -- if migrated, disable this translator
+  if db.migrated_to_version == meta._VERSION then
+ngx.log(ngx.ERR, "SELECT BY CACHE KEY: MIGRATED TO VERSION ", meta._VERSION)
+    Plugins.select_by_cache_key = self.super.select_by_cache_key
+    return self.super.select_by_cache_key(key)
+  end
+
   -- try new format
   local entity, new_err = self.super.select_by_cache_key(self, key)
   if entity then

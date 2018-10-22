@@ -1,4 +1,6 @@
 local log = require "kong.cmd.utils.log"
+local meta = require "kong.meta"
+local kong_cluster_events = require "kong.cluster_events"
 
 
 local fmt = string.format
@@ -151,11 +153,17 @@ local function up(schema_state, db, opts)
 end
 
 
-local function finish(schema_state, db, ttl)
+local function finish(schema_state, db, conf, ttl)
   if schema_state.needs_bootstrap then
     log("can't run migrations: database not bootstrapped")
     return
   end
+
+  local cluster_events = assert(kong_cluster_events.new {
+    db = db,
+    poll_offset = conf.db_update_propagation,
+    poll_interval = conf.db_update_frequency,
+  })
 
   local opts = {
     ttl = ttl,
@@ -176,6 +184,8 @@ local function finish(schema_state, db, ttl)
     assert(db:run_migrations(schema_state.pending_migrations, {
       run_teardown = true,
     }))
+
+    cluster_events:broadcast("migrations:finish", meta._VERSION)
   end)
   if err then
     error(err)

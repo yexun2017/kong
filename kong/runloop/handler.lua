@@ -505,6 +505,28 @@ return {
       end)
 
 
+      -- migrations
+
+
+      -- notification of migration completion
+      cluster_events:subscribe("migrations:finish", function(data)
+        -- => to worker_events node handler
+ngx.log(ngx.ERR, "CLUSTER EVENT: MIGRATED TO VERSION ", data)
+        local ok, err = worker_events.post("migrations", "finish", data)
+        if not ok then
+          log(ERR, "failed broadcasting migrations:finish to workers: ", err)
+        end
+      end)
+
+
+      -- worker_events migration completion handler
+      worker_events.register(function(data)
+ngx.log(ngx.ERR, "WORKER EVENT: MIGRATED TO VERSION ", data)
+
+        db.migrated_to_version = data
+      end, "migrations", "finish")
+
+
       -- initialize balancers for active healthchecks
       ngx.timer.at(0, function()
         balancer.init()

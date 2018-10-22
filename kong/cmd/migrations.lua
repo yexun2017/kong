@@ -135,7 +135,7 @@ local function execute(args)
     })
 
   elseif args.command == "finish" then
-    migrations_utils.finish(schema_state, db, args.lock_timeout)
+    migrations_utils.finish(schema_state, db, conf, args.lock_timeout)
 
   else
     error("unreachable")
