@@ -1,5 +1,6 @@
 local BasePlugin = require "kong.plugins.base_plugin"
 local responses  = require "kong.tools.responses"
+local lrucache   = require "resty.lrucache"
 
 local url             = require "socket.url"
 local req_get_method  = ngx.req.get_method
@@ -16,7 +17,9 @@ CorsHandler.PRIORITY = 2000
 CorsHandler.VERSION = "0.1.0"
 
 
-local parsed_domains = { }
+-- per-worker cache of parsed origins
+local CACHE_SIZE = 10 ^ 4
+local parsed_domains
 
 
 local function configure_origin(ngx, conf)
@@ -54,17 +57,24 @@ local function configure_origin(ngx, conf)
   local req_origin = ngx.var.http_origin
   if req_origin then
 
-    local parsed_req_origin = url.parse(req_origin).host or req_origin
+    local parsed_req_origin_obj = url.parse(req_origin)
+    local parsed_req_origin = parsed_req_origin_obj and parsed_req_origin_obj.host 
+                              or req_origin
 
     for _, domain in ipairs(conf.origins) do
 
+      if not parsed_domains then
+        parsed_domains = lrucache.new(CACHE_SIZE)
+      end
+
       local parsed_domain = parsed_domains[domain]
       if not parsed_domain then
-        parsed_domain = url.parse(domain).host or domain
+        local parsed_domain_obj = url.parse(domain)
+        parsed_domain = parsed_domain_obj and parsed_domain_obj.host or domain
         parsed_domains[domain] = parsed_domain
       end
 
-      local from, _, err = re_find(parsed_req_origin, "^"..parsed_domain.."$", "jo")
+      local from, _, err = re_find(parsed_req_origin, "^" .. parsed_domain .. "$", "jo")
       if err then
         ngx.log(ngx.ERR, "[cors] could not search for domain: ", err)
       end
