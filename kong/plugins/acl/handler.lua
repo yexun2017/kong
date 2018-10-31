@@ -22,7 +22,7 @@ local ACLHandler = BasePlugin:extend()
 
 
 ACLHandler.PRIORITY = 950
-ACLHandler.VERSION = "0.2.0"
+ACLHandler.VERSION = "0.3.0"
 
 
 function ACLHandler:new()
@@ -40,6 +40,36 @@ function ACLHandler:access(conf)
     config.type = (conf.blacklist or EMPTY)[1] and BLACK or WHITE
     config.groups = config.type == BLACK and conf.blacklist or conf.whitelist
     config.cache = setmetatable({}, mt_cache)
+  end
+
+  local authenticated_groups = groups.get_authenticated_groups()
+  if authenticated_groups then
+    local in_group = groups.group_in_groups(config.groups, authenticated_groups)
+
+    local to_be_blocked
+    if config.type == BLACK then
+      to_be_blocked = in_group
+    else
+      to_be_blocked = not in_group
+    end
+
+    if to_be_blocked == false then
+      -- we're allowed, convert 'false' to the header value, if needed
+      -- if not needed, set dummy value to save mem for potential long strings
+      to_be_blocked = conf.hide_groups_header and ""
+                      or concat(authenticated_groups, ", ")
+    end
+
+    if to_be_blocked == true then -- NOTE: we only catch the boolean here!
+      return kong.response.exit(403, { message = "You cannot consume this service" })
+    end
+
+    if not conf.hide_groups_header then
+      kong.service.request.set_header(constants.HEADERS.AUTHENTICATED_GROUPS,
+                                      to_be_blocked)
+    end
+
+    return
   end
 
   -- get the consumer/credentials
