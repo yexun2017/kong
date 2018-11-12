@@ -20,7 +20,7 @@ local RateLimitingHandler = BasePlugin:extend()
 
 
 RateLimitingHandler.PRIORITY = 901
-RateLimitingHandler.VERSION = "0.2.0"
+RateLimitingHandler.VERSION = "1.0.0"
 
 
 local function get_identifier(conf)
@@ -145,6 +145,10 @@ end
 function RateLimitingHandler:header_filter(_)
   RateLimitingHandler.super.header_filter(self)
 
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   local headers = kong.ctx.plugin.headers
   if headers then
     kong.response.set_headers(headers)
@@ -153,9 +157,11 @@ end
 
 
 function RateLimitingHandler:log(_)
-  if kong.ctx.plugin.timer then
-    kong.ctx.plugin.timer()
+  if kong.response.get_source() ~= "service" or not kong.ctx.plugin.timer then
+    return
   end
+
+  kong.ctx.plugin.timer()
 end
 
 
