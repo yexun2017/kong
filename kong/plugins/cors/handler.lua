@@ -22,6 +22,18 @@ local CACHE_SIZE = 10 ^ 4
 local parsed_domains
 
 
+local function parse_origin_domain(domain)
+  local parsed_obj = url.parse(domain)
+  if parsed_obj and parsed_obj.host then
+    return (parsed_obj.scheme and parsed_obj.scheme .. "://" or "") .. 
+            parsed_obj.host .. 
+            (parsed_obj.port and ":" .. parsed_obj.port or "")
+  else
+    return domain
+  end
+end
+
+
 local function configure_origin(ngx, conf)
   local n_origins = conf.origins ~= nil and #conf.origins or 0
 
@@ -57,21 +69,17 @@ local function configure_origin(ngx, conf)
   local req_origin = ngx.var.http_origin
   if req_origin then
 
-    local parsed_req_origin_obj = url.parse(req_origin)
-    local parsed_req_origin = parsed_req_origin_obj and parsed_req_origin_obj.host 
-                              or req_origin
+    local parsed_req_origin = parse_origin_domain(req_origin)
 
     for _, domain in ipairs(conf.origins) do
-
       if not parsed_domains then
         parsed_domains = lrucache.new(CACHE_SIZE)
       end
 
-      local parsed_domain = parsed_domains[domain]
+      local parsed_domain = parsed_domains:get(domain)
       if not parsed_domain then
-        local parsed_domain_obj = url.parse(domain)
-        parsed_domain = parsed_domain_obj and parsed_domain_obj.host or domain
-        parsed_domains[domain] = parsed_domain
+        parsed_domain = parse_origin_domain(domain)
+        parsed_domains:set(domain, parsed_domain)
       end
 
       local from, _, err = re_find(parsed_req_origin, "^" .. parsed_domain .. "$", "jo")

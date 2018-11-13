@@ -48,6 +48,10 @@ for _, strategy in helpers.each_strategy() do
         hosts = { "cors10.com" },
       })
 
+      local route11 = bp.routes:insert({
+        hosts = { "cors11.com" },
+      })
+
       bp.plugins:insert {
         name     = "cors",
         route_id = route1.id,
@@ -141,6 +145,14 @@ for _, strategy in helpers.each_strategy() do
         route_id = route10.id,
         config   = {
           origins = { "http://my-site.com", "http://my-other-site.com" },
+        }
+      }
+
+      bp.plugins:insert {
+        name     = "cors",
+        route_id = route11.id,
+        config   = {
+          origins = { "http://my-site.com", "https://my-other-site.com:9000" },
         }
       }
 
@@ -402,7 +414,7 @@ for _, strategy in helpers.each_strategy() do
         end
       end)
 
-      it("does automatically parse the host", function()
+      it("does not automatically parse the host", function()
         local res = assert(proxy_client:send {
           method  = "GET",
           headers = {
@@ -411,7 +423,7 @@ for _, strategy in helpers.each_strategy() do
           }
         })
         assert.res_status(200, res)
-        assert.equal("http://example.com", res.headers["Access-Control-Allow-Origin"])
+        assert.is_nil(res.headers["Access-Control-Allow-Origin"])
 
         -- With a different transport too
         local res = assert(proxy_client:send {
@@ -422,7 +434,49 @@ for _, strategy in helpers.each_strategy() do
           }
         })
         assert.res_status(200, res)
-        assert.equal("https://example.com", res.headers["Access-Control-Allow-Origin"])
+        assert.is_nil(res.headers["Access-Control-Allow-Origin"])
+      end)
+
+      it("validates scheme and port", function()
+        local res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "http://my-site.com"
+          }
+        })
+        assert.res_status(200, res)
+        assert.equals("http://my-site.com", res.headers["Access-Control-Allow-Origin"])
+
+        res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "https://my-site.com"
+          }
+        })
+        assert.res_status(200, res)
+        assert.is_nil(res.headers["Access-Control-Allow-Origin"])
+
+        local res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "https://my-other-site.com:9000"
+          }
+        })
+        assert.res_status(200, res)
+        assert.equals("https://my-other-site.com:9000", res.headers["Access-Control-Allow-Origin"])
+
+        local res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "https://my-other-site.com:9001"
+          }
+        })
+        assert.res_status(200, res)
+        assert.is_nil(res.headers["Access-Control-Allow-Origin"])
       end)
 
       it("does not sets CORS orgin if origin host is not in origin_domains list", function()
