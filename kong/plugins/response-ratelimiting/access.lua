@@ -1,6 +1,9 @@
 local policies = require "kong.plugins.response-ratelimiting.policies"
 local timestamp = require "kong.tools.timestamp"
 
+
+local kong = kong
+local next = next
 local pairs = pairs
 local tostring = tostring
 
@@ -8,11 +11,11 @@ local tostring = tostring
 local EMPTY = {}
 local HTTP_INTERNAL_SERVER_ERROR = 500
 local HTTP_TOO_MANY_REQUESTS = 429
+local RATELIMIT_REMAINING = "X-RateLimit-Remaining"
 
 
 local _M = {}
 
-local RATELIMIT_REMAINING = "X-RateLimit-Remaining"
 
 local function get_identifier(conf)
   local identifier
@@ -29,6 +32,7 @@ local function get_identifier(conf)
 
   return identifier or kong.client.get_forwarded_ip()
 end
+
 
 local function get_usage(conf, identifier, current_timestamp, limits)
   local usage = {}
@@ -56,6 +60,7 @@ local function get_usage(conf, identifier, current_timestamp, limits)
 
   return usage
 end
+
 
 function _M.execute(conf)
   if not next(conf.limits) then
@@ -96,10 +101,13 @@ function _M.execute(conf)
       end
     end
 
-    kong.service.request.set_header(RATELIMIT_REMAINING .. "-" .. k, remaining)
+    if remaining then
+      kong.service.request.set_header(RATELIMIT_REMAINING .. "-" .. k, remaining)
+    end
   end
 
   kong.ctx.plugin.usage = usage -- For later use
 end
+
 
 return _M

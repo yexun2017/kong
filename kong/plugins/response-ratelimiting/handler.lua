@@ -6,6 +6,9 @@ local log = require "kong.plugins.response-ratelimiting.log"
 local header_filter = require "kong.plugins.response-ratelimiting.header_filter"
 
 
+local kong = kong
+
+
 local ResponseRateLimitingHandler = BasePlugin:extend()
 
 
@@ -22,20 +25,31 @@ end
 
 function ResponseRateLimitingHandler:header_filter(conf)
   ResponseRateLimitingHandler.super.header_filter(self)
+
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   header_filter.execute(conf)
 end
 
 
 function ResponseRateLimitingHandler:log(conf)
+  ResponseRateLimitingHandler.super.log(self)
+
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   local ctx = kong.ctx.plugin
   if not ctx.stop_log and ctx.usage then
-    ResponseRateLimitingHandler.super.log(self)
     log.execute(conf, ctx.identifier, ctx.current_timestamp, ctx.increments, ctx.usage)
   end
 end
 
 
 ResponseRateLimitingHandler.PRIORITY = 900
-ResponseRateLimitingHandler.VERSION = "0.1.0"
+ResponseRateLimitingHandler.VERSION = "1.0.0"
+
 
 return ResponseRateLimitingHandler

@@ -1,14 +1,21 @@
 local utils = require "kong.tools.utils"
 
+
+local kong = kong
+local next = next
+local type = type
 local pairs = pairs
 local ipairs = ipairs
 local tonumber = tonumber
 local math_max = math.max
 
+
 local RATELIMIT_LIMIT = "X-RateLimit-Limit"
 local RATELIMIT_REMAINING = "X-RateLimit-Remaining"
 
+
 local _M = {}
+
 
 local function parse_header(header_value, limits)
   local increments = {}
@@ -31,6 +38,7 @@ local function parse_header(header_value, limits)
   end
   return increments
 end
+
 
 function _M.execute(conf)
   kong.ctx.plugin.increments = {}
@@ -58,8 +66,14 @@ function _M.execute(conf)
 
         local limit_hdr  = RATELIMIT_LIMIT .. "-" .. limit_name .. "-" .. period_name
         local remain_hdr = RATELIMIT_REMAINING .. "-" .. limit_name .. "-" .. period_name
-        kong.response.set_header(limit_hdr, lv.limit)
-        kong.response.set_header(remain_hdr, remain)
+
+        if lv.limit then
+          kong.response.set_header(limit_hdr, lv.limit)
+        end
+
+        if remain then
+          kong.response.set_header(remain_hdr, remain)
+        end
       end
 
       if increments[limit_name] and increments[limit_name] > 0 and lv.remaining <= 0 then
@@ -76,5 +90,6 @@ function _M.execute(conf)
     return kong.response.exit(429) -- Don't set a body
   end
 end
+
 
 return _M
