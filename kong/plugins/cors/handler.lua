@@ -25,9 +25,17 @@ local parsed_domains
 local function parse_origin_domain(domain)
   local parsed_obj = url.parse(domain)
   if parsed_obj and parsed_obj.host then
+    local port = parsed_obj.port
+    if not port and parsed_obj.scheme then
+      if parsed_obj.scheme == "http" then
+        port = 80
+      elseif parsed_obj.scheme == "https" then
+        port = 443
+      end
+    end
     return (parsed_obj.scheme and parsed_obj.scheme .. "://" or "") .. 
             parsed_obj.host .. 
-            (parsed_obj.port and ":" .. parsed_obj.port or "")
+            (port and ":" .. port or "")
   else
     return domain
   end

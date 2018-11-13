@@ -448,6 +448,26 @@ for _, strategy in helpers.each_strategy() do
         assert.res_status(200, res)
         assert.equals("http://my-site.com", res.headers["Access-Control-Allow-Origin"])
 
+        local res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "http://my-site.com:80"
+          }
+        })
+        assert.res_status(200, res)
+        assert.equals("http://my-site.com:80", res.headers["Access-Control-Allow-Origin"])
+
+        local res = assert(proxy_client:send {
+          method  = "GET",
+          headers = {
+            ["Host"]   = "cors11.com",
+            ["Origin"] = "http://my-site.com:8000"
+          }
+        })
+        assert.res_status(200, res)
+        assert.is_nil(res.headers["Access-Control-Allow-Origin"])
+
         res = assert(proxy_client:send {
           method  = "GET",
           headers = {
