@@ -136,6 +136,89 @@ for _, strategy in helpers.each_strategy() do
       end
     end)
 
+    local function admin_request(req)
+      local admin_client = helpers.admin_client()
+      local res = assert(admin_client:send({
+        method = "POST" or req.method,
+        path = req.path,
+        body = req.body,
+        headers = {
+          ["Content-Type"] = "application/json"
+        }
+      }))
+      local raw = res:read_body()
+      local body = cjson.decode(raw)
+      admin_client:close()
+      return body
+    end
+
+    it("logs to HTTP using a global plugin", function()
+
+      local service1 = admin_request({
+        path = "/services",
+        body = {
+          protocol = "http",
+          host     = helpers.mock_upstream_host,
+          port     = helpers.mock_upstream_port,
+        }
+      })
+
+      assert(admin_request({
+        path = "/services/" .. service1.id .. "/routes",
+        body = {
+          hosts   = { "global_http_logging.test" },
+          service = { id = service1.id },
+        }
+      }))
+
+      local global_plugin = admin_request({
+        path = "/services/" .. service1.id .. "/plugins",
+        body = {
+          name     = "http-log",
+          config   = {
+            http_endpoint = "http://" .. helpers.mock_upstream_host
+                                      .. ":"
+                                      .. helpers.mock_upstream_port
+                                      .. "/post_log/http"
+          }
+        }
+      })
+
+      finally(function()
+        admin_request({
+          path = "/plugins/" .. global_plugin.id,
+          method = "DELETE",
+        })
+      end)
+
+      local res = assert(proxy_client:send({
+        method = "GET",
+        path = "/status/200",
+        headers = {
+          ["Host"] = "global_http_logging.test"
+        }
+      }))
+      assert.res_status(200, res)
+
+      helpers.wait_until(function()
+        local client = assert(helpers.http_client(helpers.mock_upstream_host, helpers.mock_upstream_port))
+        local res = assert(client:send {
+          method  = "GET",
+          path    = "/read_log/http",
+          headers = {
+            Accept = "application/json"
+          }
+        })
+        local raw = assert.res_status(200, res)
+        local body = cjson.decode(raw)
+        if #body.log.entries == 1 then
+          local log_message = cjson.decode(body.log.entries[1].request.postData.text)
+          assert.same("127.0.0.1", log_message.client_ip)
+          return true
+        end
+      end, 10)
+    end)
+
     it("logs to HTTP", function()
       local res = assert(proxy_client:send({
         method = "GET",
